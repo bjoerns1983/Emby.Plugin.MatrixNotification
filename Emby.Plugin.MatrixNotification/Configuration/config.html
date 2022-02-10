@@ -1,0 +1,187 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+    <title>Matrix Notifications</title>
+</head>
+<body>
+    <div data-role="page" class="page type-interior pluginConfigurationPage MatrixConfigurationPage" data-require="emby-input,emby-button,emby-checkbox,emby-select">
+
+        <div data-role="content">
+            <div class="content-primary">
+                <form class="MatrixConfigurationForm">
+                  
+                    <div style="height:0; overflow: hidden;"><input type="text" name="fakeusernameremembered" tabindex="-1" /><input type="password" name="fakepasswordremembered" tabindex="-1" /></div>
+
+                    <div class="selectContainer">
+                        <select is="emby-select" id="selectUser" label="Configure Matrix notifications for:"></select>
+                    </div>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="chkEnableMatrix" />
+                        <span>Enabled</span>
+                    </label>
+                    <label class="checkboxContainer">
+                        <input is="emby-checkbox" type="checkbox" id="chkSendDescriptionMatrix" />
+                        <span>Send Descriptions (needed for Playback Reporting Plugin)</span>
+                    </label>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="txtMatrixClientToken" label="Matrix Access Token:" required="required" />
+                        <div class="fieldDescription">
+                            API Token of your Matrix Bot
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="txtMatrixRoomID" label="Matrix RoomID key:" required="required" />
+                        <div class="fieldDescription">
+                            ID of the Room your Bot resides in
+                        </div>
+                    </div>
+                    <div class="inputContainer">
+                        <input is="emby-input" type="text" id="txtMatrixServerAddress" label="Matrix Server eg https://matrix.org/:" required="required" />
+                        <div class="fieldDescription">
+                            URI of your Matrix Server enter like: https://matrix.org/ or https://matrix.example.org:8484/. Dont forget the slash at the end!
+                        </div>
+                    </div>
+                    <div>
+                        <button is="emby-button" type="button" class="raised button-cancel block" id="testNotification">
+                            <span>Test Notification</span>
+                        </button>
+                    </div>
+                    <br />
+                    <div>
+                        <button is="emby-button" type="submit" class="raised button-submit block"><span>Save</span></button>
+                    </div>
+
+                </form>
+            </div>
+        </div>
+
+        <script type="text/javascript">
+
+            (function () {
+
+                var pluginId = "4C7018C4-2E18-45CA-AE5E-C1DF19AE2952";
+
+                function loadUserConfig(page, userId) {
+
+                    Dashboard.showLoadingMsg();
+
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+
+                        var MatrixConfig = config.Options.filter(function (c) {
+
+                            return userId == c.MediaBrowserUserId;
+
+                        })[0] || {};
+
+						page.querySelector('#chkEnableMatrix').checked = MatrixConfig.Enabled || false;
+                        page.querySelector('#chkSendDescriptionMatrix').checked = MatrixConfig.SendDescription || false;
+                        $('#txtMatrixClientToken', page).val(MatrixConfig.ClientToken || '');
+                        $('#txtMatrixRoomID', page).val(MatrixConfig.RoomID || '');
+                        $('#txtMatrixServerAddress', page).val(MatrixConfig.ServerAddress || '');
+
+                        Dashboard.hideLoadingMsg();
+                    });
+                }
+
+                $('.MatrixConfigurationPage').on('pageinit', function (event) {
+
+                    var page = this;
+
+                    $('#selectUser', page).on('change', function () {
+
+                        loadUserConfig(page, this.value);
+                    });
+
+                    $('#testNotification', page).on('click', function (event) {
+
+                        Dashboard.showLoadingMsg();
+
+                        var onError = function () {
+                            alert("There was an error sending the test notification. Please check your notification settings and try again.");
+                            require(['alert'], function (alert) {
+                                Dashboard.hideLoadingMsg();
+                            });
+                        };
+
+                        ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+
+                            if (!config.Options.length) {
+                                Dashboard.hideLoadingMsg();
+                                require(['alert'], function (alert) {
+                                    alert("Please configure and save at least one notification account.");
+                                });
+                            }
+
+                            config.Options.map(function (c) {
+
+                                ApiClient.ajax({
+                                    type: "POST",
+                                    url: ApiClient.getUrl("Notification/Matrix/Test/" + c.MediaBrowserUserId)
+
+                                }).then(function () {
+                                    Dashboard.hideLoadingMsg();
+                                }, onError);
+                            });
+                        });
+                    });
+
+                }).on('pageshow', function (event) {
+
+                    Dashboard.showLoadingMsg();
+
+                    var page = this;
+
+                    ApiClient.getUsers().then(function (users) {
+
+                        $('#selectUser', page).html(users.map(function (user) {
+
+                            return '<option value="' + user.Id + '">' + user.Name + '</option>';
+
+                       })).trigger('change');
+
+                    });
+
+                    Dashboard.hideLoadingMsg();
+                });
+
+                $('.MatrixConfigurationForm').on('submit', function (e) {
+
+                    Dashboard.showLoadingMsg();
+
+                    var form = this;
+
+                    ApiClient.getPluginConfiguration(pluginId).then(function (config) {
+
+                        var userId = $('#selectUser', form).val();
+
+                        var MatrixConfig = config.Options.filter(function (c) {
+
+                            return userId == c.MediaBrowserUserId;
+
+                        })[0];
+
+                        if (!MatrixConfig) {
+                            MatrixConfig = {};
+                            config.Options.push(MatrixConfig);
+                        }
+
+                        MatrixConfig.MediaBrowserUserId = userId;
+
+                        MatrixConfig.Enabled = form.querySelector('#chkEnableMatrix').checked;
+                        MatrixConfig.SendDescription = form.querySelector('#chkSendDescriptionMatrix').checked;
+                        MatrixConfig.ClientToken = $('#txtMatrixClientToken', form).val();
+                        MatrixConfig.RoomID = $('#txtMatrixRoomID', form).val();
+                        MatrixConfig.ServerAddress = $('#txtMatrixServerAddress', form).val();
+
+                        ApiClient.updatePluginConfiguration(pluginId, config).then(Dashboard.processPluginConfigurationUpdateResult);
+                    });
+
+                    return false;
+                });
+
+            })();
+
+        </script>
+    </div>
+</body>
+</html>
