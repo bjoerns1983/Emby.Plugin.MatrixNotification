@@ -4,7 +4,6 @@ using MediaBrowser.Common.Configuration;
 using MediaBrowser.Common.Plugins;
 using MediaBrowser.Model.Plugins;
 using MediaBrowser.Model.Serialization;
-using Emby.Plugin.MatrixNotification.Configuration;
 using System.IO;
 using MediaBrowser.Model.Drawing;
 
@@ -13,19 +12,9 @@ namespace Emby.Plugin.MatrixNotification
     /// <summary>
     /// Class Plugin
     /// </summary>
-    public class Plugin : BasePlugin<PluginConfiguration>, IHasWebPages, IHasThumbImage
+    public class Plugin : BasePlugin, IHasWebPages, IHasThumbImage
     {
-        public Plugin(IApplicationPaths applicationPaths, IXmlSerializer xmlSerializer)
-            : base(applicationPaths, xmlSerializer)
-        {
-            Instance = this;
-        }
-
-        private Guid _id = new Guid("4C7018C4-2E18-45CA-AE5E-C1DF19AE2952");
-        public override Guid Id
-        {
-            get { return _id; }
-        }
+        private const string EditorJsName = "matixnotificationeditorjs";
 
         public IEnumerable<PluginPageInfo> GetPages()
         {
@@ -33,11 +22,27 @@ namespace Emby.Plugin.MatrixNotification
             {
                 new PluginPageInfo
                 {
-                    Name = Name,
-                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.config.html"
+                    Name = EditorJsName,
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.entryeditor.js"
+                },
+                new PluginPageInfo
+                {
+                    Name = "matrixeditortemplate",
+                    EmbeddedResourcePath = GetType().Namespace + ".Configuration.entryeditor.template.html",
+                    IsMainConfigPage = false
                 }
             };
         }
+        
+		public string NotificationSetupModuleUrl => GetPluginPageUrl(EditorJsName);
+
+        private Guid _id = new Guid("4C7018C4-2E18-45CA-AE5E-C1DF19AE2952");
+        public override Guid Id
+        {
+            get { return _id; }
+        }
+
+        public static string StaticName = "Matrix";
 
         /// <summary>
         /// Gets the name of the plugin
@@ -45,7 +50,7 @@ namespace Emby.Plugin.MatrixNotification
         /// <value>The name.</value>
         public override string Name
         {
-            get { return "Matrix Notifications"; }
+            get { return StaticName + " Notifications"; }
         }
 
         /// <summary>
@@ -74,10 +79,5 @@ namespace Emby.Plugin.MatrixNotification
             }
         }
 
-        /// <summary>
-        /// Gets the instance.
-        /// </summary>
-        /// <value>The instance.</value>
-        public static Plugin Instance { get; private set; }
     }
 }

@@ -3,60 +3,55 @@ using MediaBrowser.Common.Net;
 using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Notifications;
 using MediaBrowser.Model.Logging;
-using Emby.Plugin.MatrixNotification.Configuration;
 using System;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 using MediaBrowser.Model.Serialization;
+using Emby.Notifications;
+using MediaBrowser.Controller;
 
 namespace Emby.Plugin.MatrixNotification
 {
-    public class Notifier : INotificationService
+    public class Notifier : IUserNotifier
     {
         private readonly ILogger _logger;
+        private IServerApplicationHost _appHost;
         private readonly IHttpClient _httpClient;
         private readonly IJsonSerializer _jsonSerializer;
 
-        public Notifier(ILogManager logManager, IHttpClient httpClient, IJsonSerializer jsonSerializer)
+        public Notifier(ILogger logger, IServerApplicationHost applicationHost, IHttpClient httpClient, IJsonSerializer jsonSerializer)
         {
-            _logger = logManager.GetLogger(GetType().Name);
+            _logger = logger;
+            _appHost = applicationHost;
             _httpClient = httpClient;
             _jsonSerializer = jsonSerializer;
         }
 
-        public bool IsEnabledForUser(User user)
-        {
-            var options = GetOptions(user);
+        private Plugin Plugin => _appHost.Plugins.OfType<Plugin>().First();
 
-            return options != null && IsValid(options) && options.Enabled;
-            //return options != null  && options.Enabled;
-        }
+        public string Name => Plugin.StaticName;
 
-        private MatrixOptions GetOptions(User user)
-        {
-            return Plugin.Instance.Configuration.Options
-                .FirstOrDefault(i => string.Equals(i.MediaBrowserUserId, user.Id.ToString("N"), StringComparison.OrdinalIgnoreCase));
-        }
+        public string Key => "matrixnotifications";
 
-        public string Name
-        {
-            get { return Plugin.Instance.Name; }
-        }
+        public string SetupModuleUrl => Plugin.NotificationSetupModuleUrl;
 
-        public async Task SendNotification(UserNotification request, CancellationToken cancellationToken)
+        public async Task SendNotification(InternalNotificationRequest request, CancellationToken cancellationToken)
         {
 
-            var options = GetOptions(request.User);
-            string message = (request.Name);
+            var options = request.Configuration.Options;
 
-            if (string.IsNullOrEmpty(request.Description) == false && options.SendDescription == true)
+            options.TryGetValue("RoomID", out string roomID);
+            options.TryGetValue("ClientToken", out string clientToken);
+            options.TryGetValue("ServerAddress", out string serverAddress);
+
+
+            string message = (request.Title);
+
+            if (string.IsNullOrEmpty(request.Description) == false)
             {
-                message = (request.Name + "\n\n" + request.Description); 
+                message = (request.Title + "\n\n" + request.Description);
             }
-
-            //_logger.Debug("Matrix to Token : {0} - {1} - {2}", options.ClientToken, options.RoomID, request.Name);
-
 
             var parameters = new Dictionary<string, string> { };
             parameters.Add("msgtype", "m.text");
@@ -67,8 +62,8 @@ namespace Emby.Plugin.MatrixNotification
 
             var httpRequestOptions = new HttpRequestOptions
             {
-                Url = options.ServerAddress + "_matrix/client/r0/rooms/" + Uri.EscapeDataString(options.RoomID) + "/send/m.room.message?access_token=" + options.ClientToken,
-                CancellationToken = CancellationToken.None
+                Url = serverAddress + "_matrix/client/r0/rooms/" + Uri.EscapeDataString(roomID) + "/send/m.room.message?access_token=" + clientToken,
+                CancellationToken = cancellationToken
             };
             httpRequestOptions.RequestContentType = "application/json";
             httpRequestOptions.RequestContent = content;
@@ -82,11 +77,5 @@ namespace Emby.Plugin.MatrixNotification
 
         }
 
-        private bool IsValid(MatrixOptions options)
-        {
-            return !string.IsNullOrEmpty(options.RoomID) &&
-                !string.IsNullOrEmpty(options.ClientToken) &&
-                !string.IsNullOrEmpty(options.ServerAddress);
-        }
     }
 }
