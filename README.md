@@ -1,5 +1,7 @@
 ﻿# Emby.Plugin.MatrixNotification
 
+Move to: https://codeberg.org/bjoerns1983/Emby.Plugin.MatrixNotification
+
 Emby Server Plugin for sending notifications to a Matrix Room.
 For Emby Server Version up and including 4.7 use Version 1.0 of the Plugin.
 For Emby Server Version 4.8.20 and up use Version 1.1 of the Plugin.
